@@ -20,16 +20,16 @@ $error_message = '';
 
 
 
-// Handle form submission
+// yesle form submit bhayo bhane student ko profile update garxa
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-    // Update database with new data
-  
+    // yesle POST data bata user input lina sakxa
     $email = $_POST['email'];
     $phone = $_POST['phone'];
     $dob = $_POST['dob'];
     $address = $_POST['address'];
     $guardian_name = $_POST['guardian_name'];
     $guardian_phone = $_POST['guardian_phone'];
+    // yesle update garna ko lagi data array ma organize garxa
     $updated_data = [
         'email' => $email,
         'phone' => $phone,
@@ -38,9 +38,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         'guardian_name' => $guardian_name,
         'guardian_phone' => $guardian_phone
     ];
-    updateData("StudentProfile", "id=eq.". $_SESSION['id'], $updated_data);
- 
-   
+    // yesle StudentProfile table ma current user ko record update garxa
+    $result = updateData("StudentProfile", "id=eq.". $_SESSION['id'], $updated_data);
+    
+    // yedi update successful bhayo bhane success message dekhaxa, natra error message
+    if (isset($result['error'])) {
+        $error_message = 'Failed to update profile: ' . $result['error'];
+    } else {
+        $success_message = 'Profile updated successfully!';
+    }
 }
 ?>
 <!DOCTYPE html>

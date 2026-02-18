@@ -11,6 +11,11 @@ $students = fetchData("StudentProfile"); //fetching students from database
 $attendance = fetchData("Attendance");
 $results = fetchData("Results");
 
+// yesle fetch data valid cha ki chaina bhanera check garxa, natra empty array set garxa ta error na aave
+if (!is_array($students)) $students = [];
+if (!is_array($attendance)) $attendance = [];
+if (!is_array($results)) $results = [];
+
 
 function getGrade($percentage)
 {
@@ -26,6 +31,11 @@ function getGrade($percentage)
 // Precompute attendance and average grade for each student so the client JS can use them
 // yesle harek student ko attendance ra avg grade pahile batai rakxa, JS le seedha use garna sakincha
 foreach ($students as &$s) {
+    // yesle check garxa ki student valid array cha ki chaina, natra skip garxa
+    if (!is_array($s)) {
+        continue;
+    }
+    
     // Ensure roll number exists
     // yesle roll_no nagareko bhaye id use garera roll_no set garxa
     if (!isset($s['roll_no']) || empty($s['roll_no'])) {
@@ -34,17 +44,15 @@ foreach ($students as &$s) {
 
     // Attendance
     // yesle attendance calculate garera percentage ma store garxa
-    $s['attendance'] = 0;
+    $s['total_attended'] = 0;
+    $s['total_classes'] = 0;
     foreach ($attendance as $att) {
         if ($att['id'] == $s['id']) {
-            if (!empty($att['total'])) {
-                $s['attendance'] = round(($att['marks'] / $att['total']) * 100);
-            } else {
-                $s['attendance'] = 0;
-            }
-            break;
+            $s['total_attended'] += $att['attended'];
+            $s['total_classes'] += $att['total'];
         }
     }
+    $s['attendance'] = $s['total_classes'] > 0 ? round(($s['total_attended'] / $s['total_classes']) * 100) : 0;
 
     // Average grade (percentage -> grade letter)
     // yesle results haru bata avg percentage calculate garera grade letter assign garxa
@@ -62,7 +70,7 @@ foreach ($students as &$s) {
 
     // Optional fields defaults
     // yesle missing optional fields haru lai blank default value set garera modal ma N/A dekhauna milos bhanera
-    $defaults = ['phone'=>'','address'=>'','date_of_birth'=>'','program'=>'','enrollment_date'=>'','semester'=>'','guardian_name'=>'','guardian_phone'=>'','email'=>''];
+    $defaults = ['phone'=>'','address'=>'','dob'=>'','program'=>'','enrollment_date'=>'','guardian_name'=>'','guardian_phone'=>'','email'=>''];
     foreach ($defaults as $k=>$v) {
         if (!isset($s[$k])) $s[$k] = $v;
     }
@@ -74,11 +82,16 @@ $search_term = $_GET['search'] ?? '';
 $filtered_students = $students;
 
 if (!empty($search_term)) {
-    $filtered_students = array_filter($students, function ($student) use ($search_term) { //yesle sabai students ma gayera search term match hunxa ki nai bhanera herxa
-        return stripos($student['name'], $search_term) !== false ||
-            stripos($student['id'], $search_term) !== false ||
-            stripos($student['email'], $search_term) !== false;
-    }); //yesle filtered_students ma matra tyo student haru rakxa jun search term sanga match hunxa
+    // yesle search term name, id ra email ma match hunxa ki nai bhanera check garxa safely
+    $filtered_students = array_filter($students, function ($student) use ($search_term) {
+        // yedi field null cha bhane empty string use garxa ta error na aave
+        $name = $student['name'] ?? '';
+        $id = $student['id'] ?? '';
+        $email = $student['email'] ?? '';
+        return stripos($name, $search_term) !== false ||
+            stripos($id, $search_term) !== false ||
+            stripos($email, $search_term) !== false;
+    });
 }
 
 // Get student details for modal
@@ -233,7 +246,8 @@ if ($view_student_id) {
         <div class="grid grid-cols-1 md:grid-cols-1 gap-4 mb-6">
             <div class="bg-white rounded-xl p-6 shadow-sm border border-gray-200">
                 <p class="text-sm text-gray-600">Total Students</p>
-                <p class="text-3xl font-bold text-gray-900 mt-1"><?php echo count($students); ?></p>
+                <!-- yesle filtered students ko count dekhaxa, sara students ko count nagarera -->
+                <p class="text-3xl font-bold text-gray-900 mt-1"><?php echo count($filtered_students); ?></p>
             </div>
         </div>
 

@@ -1,7 +1,6 @@
 
 
 <?php
-session_start();
 
 // Supabase credentials
 $supabaseUrl = 'https://lvsogpbcuauofmjsqrde.supabase.co';

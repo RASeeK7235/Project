@@ -1,20 +1,66 @@
 <?php
+// yesle session active cha ki chaina bhanera check garxa
 if (session_status() === PHP_SESSION_NONE) {
     session_start();
 }
+// yedi login gareko chaina bhane login page ma bhejxa
 if(!isset($_SESSION['id'])){
     header('Location:../project/login.php');
 }
 
+include '../project/supabase.php';
 
-$subjects = ['Data Structures', 'Algorithms', 'Database Systems', 'Web Development'];
-$students = [
-    ['id' => 1, 'roll_no' => 'CS2023001', 'name' => 'John Doe', 'attendance' => 87.5],
-    ['id' => 2, 'roll_no' => 'CS2023002', 'name' => 'Jane Smith', 'attendance' => 92.1],
-    ['id' => 3, 'roll_no' => 'CS2023003', 'name' => 'Michael Johnson', 'attendance' => 78.4],
-    ['id' => 4, 'roll_no' => 'CS2023004', 'name' => 'Emily Williams', 'attendance' => 95.3],
-    ['id' => 5, 'roll_no' => 'CS2023005', 'name' => 'David Brown', 'attendance' => 83.7],
-];
+$subjects = fetchData('Subjects');
+$students = fetchData('StudentProfile');
+$attendance = fetchData('Attendance');
+
+// yesle nayaa subject database ma add garna ko lagi form submit handle garxa
+$add_subject_success = '';
+$add_subject_error = '';
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['action'] === 'add_subject') {
+    // yesle input ko whitespace hatayera subject code ra name lina sakxa
+    $sub_code = trim($_POST['sub_code'] ?? '');
+    $sub_name = trim($_POST['sub_name'] ?? '');
+    
+    // yedi dono field ma data cha bhane database ma add garxa
+    if (!empty($sub_code) && !empty($sub_name)) {
+        // yesle Subjects table ma nayaa subject insert garxa
+        $result = addData('Subjects', [
+            'sub_code' => $sub_code,
+            'sub_name' => $sub_name
+        ]);
+        
+        // yesle JSON format ma response pathayo ta frontend le process garna sakincha
+        header('Content-Type: application/json');
+        if (isset($result['error'])) {
+            echo json_encode(['success' => false, 'message' => 'Error: ' . $result['error']]);
+        } else {
+            // yedi subject successfully add bhayo bhane subject details return garxa
+            echo json_encode(['success' => true, 'message' => 'Subject added successfully!', 'sub_code' => $sub_code, 'sub_name' => $sub_name]);
+        }
+        exit;
+    } else {
+        header('Content-Type: application/json');
+        echo json_encode(['success' => false, 'message' => 'Subject code and name are required']);
+        exit;
+    }
+}
+
+// Map id to roll_no and calculate attendance
+foreach ($students as &$student) {
+    $student['roll_no'] = $student['id'];
+    
+    // Calculate overall attendance
+    $total_attended = 0;
+    $total_classes = 0;
+    foreach ($attendance as $att) {
+        if ($att['id'] == $student['id']) {
+            $total_attended += $att['attended'];
+            $total_classes += $att['total'];
+        }
+    }
+    $student['attendance'] = $total_classes > 0 ? round(($total_attended / $total_classes) * 100) : 0;
+} 
 
 // Handle form submission
 $success_message = '';
@@ -24,6 +70,34 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $absent_students = $_POST['absent'] ?? [];
     
     if (!empty($subject) && !empty($date)) {
+        foreach ($students as $student) {
+            $is_present = !in_array($student['id'], $absent_students);
+            
+            // Check if attendance record exists for this student and subject
+            $existing = fetchData('Attendance', "id=eq.{$student['id']}&sub_code=eq.{$subject}");
+            
+            if (!empty($existing) && !isset($existing['error'])) {
+                // Update existing record
+                $current_attended = $existing[0]['attended'];
+                $current_total = $existing[0]['total'];
+                $new_attended = $current_attended + ($is_present ? 1 : 0);
+                $new_total = $current_total + 1;
+                
+                updateData('Attendance', "id=eq.{$student['id']}&sub_code=eq.{$subject}", [
+                    'attended' => $new_attended,
+                    'total' => $new_total
+                ]);
+            } else {
+                // Insert new record
+                addData('Attendance', [
+                    'sub_code' => $subject,
+                    'id' => $student['id'],
+                    'attended' => $is_present ? 1 : 0,
+                    'total' => 1
+                ]);
+            }
+        }
+        
         $present_count = count($students) - count($absent_students);
         $success_message = "Attendance recorded successfully! Present: $present_count, Absent: " . count($absent_students);
     }
@@ -75,7 +149,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                                 >
                                     <option value="">Choose a subject</option>
                                     <?php foreach ($subjects as $subject): ?>
-                                    <option value="<?php echo htmlspecialchars($subject); ?>"><?php echo htmlspecialchars($subject); ?></option>
+                                    <option value="<?php echo htmlspecialchars($subject['sub_code']); ?>"><?php echo htmlspecialchars($subject['sub_name']); ?></option>
                                     <?php endforeach; ?>
                                 </select>
 
@@ -231,22 +305,55 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             const code = document.getElementById('new-subject-code').value.trim();
             const name = document.getElementById('new-subject-name').value.trim();
             const err = document.getElementById('add-subject-error');
+            
             if (!code || !name) {
+                err.textContent = 'Both subject code and name are required';
                 err.classList.remove('hidden');
                 return;
             }
 
-            // append to select
-            const select = document.getElementById('subject');
-            const option = document.createElement('option');
-            option.value = name;
-            option.textContent = `${name} (${code})`;
-            select.appendChild(option);
-            select.value = name;
+            // Send to database via AJAX
+            const formData = new FormData();
+            formData.append('action', 'add_subject');
+            formData.append('sub_code', code);
+            formData.append('sub_name', name);
 
-            clearAddSubjectForm();
-            // hide form
-            document.getElementById('add-subject-form').classList.add('hidden');
+            fetch('attendance.php', {
+                method: 'POST',
+                body: formData
+            })
+            .then(response => {
+                if (!response.ok) {
+                    throw new Error('Network response was not ok: ' + response.status);
+                }
+                return response.json();
+            })
+            .then(data => {
+                console.log('Response:', data);
+                if (data.success) {
+                    // Add to select dropdown
+                    const select = document.getElementById('subject');
+                    const option = document.createElement('option');
+                    option.value = data.sub_code;
+                    option.textContent = `${data.sub_name} `;
+                    select.appendChild(option);
+                    select.value = data.sub_code;
+
+                    clearAddSubjectForm();
+                    document.getElementById('add-subject-form').classList.add('hidden');
+                    
+                    // Show success message
+                    alert('Subject added successfully!');
+                } else {
+                    err.textContent = data.message || 'Error adding subject';
+                    err.classList.remove('hidden');
+                }
+            })
+            .catch(error => {
+                console.error('Error:', error);
+                err.textContent = 'Error: ' + error.message;
+                err.classList.remove('hidden');
+            });
         }
     </script>
 </body>

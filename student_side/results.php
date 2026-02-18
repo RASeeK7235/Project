@@ -57,6 +57,7 @@ $overall_grade = getGrade($average_percentage);
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Results - Student Portal</title>
     <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 </head>
 <body class="bg-gray-50">
     <?php include 'student_nav.php'; ?>
@@ -167,5 +168,23 @@ $overall_grade = getGrade($average_percentage);
             </div>
         </div>
     </div>
+
+// yesle real-time subscription set up garxa Results table ma change bhayo bhane page reload garna
+<script>
+// yesle anon key use garera Supabase client initialize garxa
+const supabase = window.supabase.createClient('https://lvsogpbcuauofmjsqrde.supabase.co', 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imx2c29ncGJjdWF1b2ZtanNxcmRlIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjUyOTIwNzQsImV4cCI6MjA4MDg2ODA3NH0.lwUFlN-Ba8uheoF3kB1rwRDEYBSYt0Ay11TEpZJm_0g');
+
+// yesle current user ko ID Results subscription ma filter garna ko lagi
+const userId = '<?php echo $_SESSION['id']; ?>';
+
+// yesle current user ko Results data change bhayo bhane page reload garxa
+const resultsChannel = supabase
+  .channel('results_changes')
+  .on('postgres_changes', { event: '*', schema: 'public', table: 'Results', filter: `id=eq.${userId}` }, (payload) => {
+    location.reload();
+  })
+  .subscribe();
+</script>
+
 </body>
 </html>

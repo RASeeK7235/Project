@@ -45,9 +45,9 @@ results done
 
 
 TEACHERS SIDE
-students done
+students done(update left)
 profile done
-notices
-
-
+notices done
+attendance done
+results done
 

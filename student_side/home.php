@@ -1,21 +1,19 @@
 <?php
+if (session_status() === PHP_SESSION_NONE) {
+    session_start();
+}
+
 include '../project/config.php'; //remove this after database connection
 include '../project/supabase.php';
 
+if(!isset($_SESSION['id'])){
+    header('Location:../project/login.php');
+}
 
 $notices=fetchData("Notices","order=created_at.desc&limit=5");//fetching notices from database 
 $attendanceData=fetchData("Attendance","id=eq.".urlencode($_SESSION['id']));
 
 $resultsData=fetchData("Results","id=eq.".urlencode($_SESSION['id']));
-
-//check if user is logged in ,if not redirect to login page
-if (session_status() === PHP_SESSION_NONE) {
-    session_start();
-}
-
-if(!isset($_SESSION['id'])){
-    header('Location:../project/login.php');
-}
 
 // Calculate overall attendance percentage from demo data
 $total_attended = 0;
@@ -44,6 +42,7 @@ $grade_percentage = $count > 0 ? $marks / $total*100 : 0;
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Notices - Student Portal</title>
     <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 </head>
 <body class="bg-gray-50">
     <?php include 'student_nav.php'; ?>
@@ -117,5 +116,39 @@ $grade_percentage = $count > 0 ? $marks / $total*100 : 0;
             </div>
         </div>
     </div>
+
+// yesle real-time subscription set up garxa Notices, Attendance ra Results table ko lagi anon key use garera
+<script>
+// yesle anon key use garera Supabase client initialize garxa
+const supabase = window.supabase.createClient('https://lvsogpbcuauofmjsqrde.supabase.co', 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imx2c29ncGJjdWF1b2ZtanNxcmRlIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjUyOTIwNzQsImV4cCI6MjA4MDg2ODA3NH0.lwUFlN-Ba8uheoF3kB1rwRDEYBSYt0Ay11TEpZJm_0g');
+
+// yesle logged-in user ko ID pass garxa subscription ma
+const userId = '<?php echo $_SESSION['id']; ?>';
+
+// yesle Notices table ko kahi changes bhayo bhane page reload garxa
+const noticesChannel = supabase
+  .channel('notices_changes')
+  .on('postgres_changes', { event: '*', schema: 'public', table: 'Notices' }, (payload) => {
+    location.reload();
+  })
+  .subscribe();
+
+// yesle current user ko Attendance data change bhayo bhane page reload garxa
+const attendanceChannel = supabase
+  .channel('attendance_changes_home')
+  .on('postgres_changes', { event: '*', schema: 'public', table: 'Attendance', filter: `id=eq.${userId}` }, (payload) => {
+    location.reload();
+  })
+  .subscribe();
+
+// yesle current user ko Results data change bhayo bhane page reload garxa
+const resultsChannel = supabase
+  .channel('results_changes_home')
+  .on('postgres_changes', { event: '*', schema: 'public', table: 'Results', filter: `id=eq.${userId}` }, (payload) => {
+    location.reload();
+  })
+  .subscribe();
+</script>
+
 </body>
 </html>

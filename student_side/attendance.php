@@ -1,10 +1,19 @@
 <?php
+// yesle session active cha ki chaina bhanera check garxa
+if (session_status() === PHP_SESSION_NONE) {
+    session_start();
+}
 
+// yedi login gareko chaina bhane login page ma bhejxa
+if(!isset($_SESSION['id'])){
+    header('Location:../project/login.php');
+}
 
 include '../project/supabase.php';
+// yesle current student ko attendance data fetch garxa student ID use garera
 $attendanceData=fetchData("Attendance","id=eq.".urlencode($_SESSION['id']));
 
-
+// yesle sabai Subjects ko list fetch garxa dropdown populate garna ko lagi
 $sub_name=fetchData("Subjects");
 
 
@@ -87,6 +96,7 @@ function getStatusLabel($percent) {
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Student Attendance</title>
     <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 </head>
 <body class="bg-gray-50 min-h-screen">
 <?php include 'student_nav.php'; ?>
@@ -185,6 +195,24 @@ function getStatusLabel($percent) {
         </div>
     </div>
 </div>
+
+<script>
+const supabase = window.supabase.createClient('https://lvsogpbcuauofmjsqrde.supabase.co', 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imx2c29ncGJjdWF1b2ZtanNxcmRlIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjUyOTIwNzQsImV4cCI6MjA4MDg2ODA3NH0.lwUFlN-Ba8uheoF3kB1rwRDEYBSYt0Ay11TEpZJm_0g');
+
+const userId = '<?php echo $_SESSION['id']; ?>';
+
+console.log('User ID:', userId);
+
+const attendanceChannel = supabase
+  .channel('attendance_changes')
+  .on('postgres_changes', { event: '*', schema: 'public', table: 'Attendance', filter: `id=eq.${userId}` }, (payload) => {
+    console.log('Attendance change detected:', payload);
+    location.reload();
+  })
+  .subscribe((status) => {
+    console.log('Subscription status:', status);
+  });
+</script>
 
 </body>
 </html>

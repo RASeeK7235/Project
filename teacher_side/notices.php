@@ -11,7 +11,7 @@ if(!isset($_SESSION['id'])){
 $notices = fetchData('Notices','created_by=eq.'.urlencode($_SESSION['username']));
 
 // Handle form submissions
-// yesle create / edit / delete ka request haru lai process garxa
+// yesle create / edit / delete ko request haru lai process garxa
 $success_message = '';
 $error_message = ''; 
 

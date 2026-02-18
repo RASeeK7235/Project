@@ -6,16 +6,29 @@ if(!isset($_SESSION['id'])){
     header('Location:../project/login.php');
 }
 
-// Mock data
-$subjects = ['Data Structures', 'Algorithms', 'Database Systems', 'Web Development'];
-$batches = ['2021-2025', '2022-2026', '2023-2027'];
-$students = [
-    ['id' => 1, 'roll_no' => 'CS2023001', 'name' => 'John Doe'],
-    ['id' => 2, 'roll_no' => 'CS2023002', 'name' => 'Jane Smith'],
-    ['id' => 3, 'roll_no' => 'CS2023003', 'name' => 'Michael Johnson'],
-    ['id' => 4, 'roll_no' => 'CS2023004', 'name' => 'Emily Williams'],
-    ['id' => 5, 'roll_no' => 'CS2023005', 'name' => 'David Brown'],
-];
+include '../project/supabase.php';
+
+// yesle real database bata Subjects, Students ra Results ko data fetch garxa mock data ko instead
+$subjects = fetchData('Subjects');
+$students = fetchData('StudentProfile');
+$results = fetchData('Results');
+
+// yesle students bata unique batches extract garxa dropdown para display garna
+$batches = array_unique(array_column($students, 'batch'));
+sort($batches);
+
+// yesle student ko id lai roll_no ma map garxa consistency ke lagi
+foreach ($students as &$student) {
+    $student['roll_no'] = $student['id'];
+}
+unset($student);
+
+// yedi batch select bhayo bhane tyo batch ko matra students filter garxa
+$selected_batch = $_POST['batch'] ?? '';
+$filtered_students = $students;
+if (!empty($selected_batch)) {
+    $filtered_students = array_filter($students, fn($s) => $s['batch'] == $selected_batch);
+}
 
 // Handle form submission
 $success_message = '';
@@ -26,6 +39,19 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $marks = $_POST['marks'] ?? [];
     
     if (!empty($subject) && !empty($batch) && !empty($exam_type)) {
+        foreach ($marks as $student_id => $mark_data) {
+            $obtained = $mark_data['obtained'] ?? 0;
+            $total = $mark_data['total'] ?? 100;
+            
+            addData('Results', [
+                'id' => $student_id,
+                'sub_code' => $subject,
+                'marks' => $obtained,
+                'total' => $total,
+                'exam_type' => $exam_type
+            ]);
+        }
+        
         $success_message = "Marks saved successfully for " . htmlspecialchars($exam_type) . "!";
     }
 }
@@ -75,7 +101,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                             >
                                 <option value="">Choose a subject</option>
                                 <?php foreach ($subjects as $subject): ?>
-                                <option value="<?php echo htmlspecialchars($subject); ?>"><?php echo htmlspecialchars($subject); ?></option>
+                                <!-- yesle Subjects table bata sub_code ra sub_name display garxa dropdown ma -->
+                                <option value="<?php echo htmlspecialchars($subject['sub_code']); ?>"><?php echo htmlspecialchars($subject['sub_name']); ?></option>
                                 <?php endforeach; ?>
                             </select>
                         </div>
@@ -140,12 +167,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                                     <th class="px-6 py-3 text-left text-sm font-medium text-gray-700">Student Name</th>
                                     <th class="px-6 py-3 text-center text-sm font-medium text-gray-700">Marks Obtained</th>
                                     <th class="px-6 py-3 text-center text-sm font-medium text-gray-700">Total Marks</th>
-                                    <th class="px-6 py-3 text-center text-sm font-medium text-gray-700">Percentage</th>
-                                    <th class="px-6 py-3 text-center text-sm font-medium text-gray-700">Grade</th>
                                 </tr>
                             </thead>
                             <tbody class="divide-y divide-gray-200">
-                                <?php foreach ($students as $student): ?>
+                                <?php foreach ($filtered_students as $student): ?>
                                 <tr class="hover:bg-gray-50">
                                     <td class="px-6 py-4">
                                         <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-800">
@@ -183,14 +208,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                                             class="w-24 px-3 py-2 border border-gray-300 rounded-lg text-center focus:ring-2 focus:ring-indigo-500 focus:border-transparent outline-none"
                                             onchange="calculatePercentage(<?php echo $student['id']; ?>)"
                                         />
-                                    </td>
-                                    <td class="px-6 py-4 text-center">
-                                        <span id="percentage-<?php echo $student['id']; ?>" class="font-medium text-gray-900">-</span>
-                                    </td>
-                                    <td class="px-6 py-4 text-center">
-                                        <span id="grade-<?php echo $student['id']; ?>" class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-800">
-                                            -
-                                        </span>
                                     </td>
                                 </tr>
                                 <?php endforeach; ?>
