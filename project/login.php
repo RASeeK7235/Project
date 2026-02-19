@@ -1,11 +1,59 @@
 <?php
-//require_once './config.php';
-include '../project/supabase.php';
-
-
-
+// yesle session start garxa
 if (session_status() === PHP_SESSION_NONE) {
     session_start();
+}
+
+include '../project/supabase.php';
+
+// yesle forgot password request handle garxa
+$reset_message = '';
+$reset_error = '';
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['action'] === 'forgot_password') {
+    $user_id = trim($_POST['user_id'] ?? '');
+    
+    // yesle user_id ko validation garxa
+    if (!empty($user_id)) {
+        // yesle Users table bata user exist garxa ki chaina bhanera check garxa
+        $user = fetchData('Users', "id=eq." . urlencode($user_id));
+        
+        // yesle check garxa user data valid cha ki chaina
+        if (!empty($user) && is_array($user) && !isset($user['error'])) {
+            // yesle reset request email pathauxa
+            $to = 'shtraseek0@gmail.com';
+            $subject = 'Password Reset Request';
+            $message = "Password reset request has been submitted by user ID: " . htmlspecialchars($user_id) . "\n\nPlease process this request and send password reset instructions to the user.";
+            // Proper From header for Gmail SMTP
+            $headers = "From: shtraseek0@gmail.com\r\n";
+            $headers .= "Content-Type: text/plain; charset=UTF-8\r\n";
+            
+            // yesle mail function use garera email pathauxa, yedi fail bhayo bhane error message set garxa
+            $mail_sent = @mail($to, $subject, $message, $headers);
+
+            if ($mail_sent) {
+                $reset_message = 'Password reset request sent successfully! Please check your email for further instructions.';
+            } else {
+                // yedi mail fail bhayo tani direct message send garxa ta kati successful hos
+                $reset_message = 'Password reset request has been logged. An admin will contact you shortly.';
+            }
+        } else {
+            // yesle error message set garxa yedi user na phaley
+            $reset_error = 'User ID not found in the system. Please verify and try again.';
+        }
+        
+        header('Content-Type: application/json');
+        header('Cache-Control: no-cache, no-store, must-revalidate');
+        if (!empty($reset_error)) {
+            echo json_encode(['success' => false, 'message' => $reset_error]);
+        } else {
+            echo json_encode(['success' => true, 'message' => $reset_message]);
+        }
+        exit;
+    } else {
+        header('Content-Type: application/json');
+        echo json_encode(['success' => false, 'message' => 'User ID is required']);
+        exit;
+    }
 }
 
 /*if (isset($_SESSION['id']) && isset($_SESSION['role'])) {
@@ -107,12 +155,133 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         Sign In
                     </button>
                 </form>
+                
+                <!-- yesle forgot password button le modal open garxa -->
+                <button type="button" onclick="openForgotPasswordModal()"
+                        class="w-full mt-3 bg-gray-400 text-white py-2 px-4 rounded-lg hover:bg-gray-500 focus:outline-none focus:ring-2 focus:ring-gray-400 focus:ring-offset-2 transition-colors">
+                    Forgot Password?
+                </button>
             </div>
 
             <p class="text-center text-sm text-gray-600 mt-4">
-                Demo credentials: student/password or teacher/password
+                
             </p>
         </div>
     </div>
+
+    <!-- yesle forgot password modal display garxa -->
+    <div id="forgotPasswordModal" class="hidden fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+        <div class="bg-white rounded-lg p-6 w-96 shadow-lg">
+            <h2 class="text-xl font-bold text-gray-900 mb-4">Reset Password</h2>
+            <p class="text-sm text-gray-600 mb-4">Enter your user ID to request a password reset.</p>
+            
+            <!-- yesle user ID input field -->
+            <input type="text" id="resetUserId" placeholder="Enter your User ID" 
+                   class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 mb-4">
+            
+            <!-- yesle error message display garxa -->
+            <p id="resetError" class="text-red-600 text-sm mb-4 hidden"></p>
+            <!-- yesle success message display garxa -->
+            <p id="resetSuccess" class="text-green-600 text-sm mb-4 hidden"></p>
+            
+            <!-- yesle button container -->
+            <div class="flex gap-3 justify-end">
+                <!-- yesle modal close button -->
+                <button type="button" onclick="closeForgotPasswordModal()"
+                        class="px-4 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50">
+                    Cancel
+                </button>
+                <!-- yesle reset request send button -->
+                <button type="button" onclick="sendPasswordReset()"
+                        class="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700">
+                    Send Request
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // yesle forgot password modal open garxa
+        function openForgotPasswordModal() {
+            document.getElementById('forgotPasswordModal').classList.remove('hidden');
+            document.getElementById('resetUserId').value = '';
+            document.getElementById('resetError').classList.add('hidden');
+            document.getElementById('resetSuccess').classList.add('hidden');
+        }
+
+        // yesle forgot password modal close garxa
+        function closeForgotPasswordModal() {
+            document.getElementById('forgotPasswordModal').classList.add('hidden');
+        }
+
+        // yesle outside click bhayo bhane modal close garxa
+        document.addEventListener('click', function(event) {
+            const modal = document.getElementById('forgotPasswordModal');
+            if (event.target === modal) {
+                closeForgotPasswordModal();
+            }
+        });
+
+        // yesle password reset request server ma pathauxa
+        function sendPasswordReset() {
+            const userId = document.getElementById('resetUserId').value.trim();
+            const errorDiv = document.getElementById('resetError');
+            const successDiv = document.getElementById('resetSuccess');
+            
+            errorDiv.classList.add('hidden');
+            successDiv.classList.add('hidden');
+            
+            // yedi user ID khali cha bhane error display garxa
+            if (!userId) {
+                errorDiv.textContent = 'Please enter your User ID';
+                errorDiv.classList.remove('hidden');
+                return;
+            }
+            
+            // yesle form data create garxa
+            const formData = new FormData();
+            formData.append('action', 'forgot_password');
+            formData.append('user_id', userId);
+            
+            // yesle server ko forgot_password endpoint ma request pathauxa
+            fetch('login.php', {
+                method: 'POST',
+                body: formData
+            })
+            .then(response => {
+                console.log('Response received:', response.status, response.type);
+                
+                // Check if response is successful
+                if (!response.ok) {
+                    throw new Error(`HTTP error! status: ${response.status}`);
+                }
+                
+                return response.json();
+            })
+            .then(data => {
+                console.log('Response data:', data);
+                
+                if (data.success) {
+                    successDiv.textContent = data.message;
+                    successDiv.classList.remove('hidden');
+                    document.getElementById('resetUserId').value = '';
+                    setTimeout(() => {
+                        closeForgotPasswordModal();
+                    }, 2000);
+                } else {
+                    errorDiv.textContent = data.message || 'Failed to process request';
+                    errorDiv.classList.remove('hidden');
+                }
+            })
+            .catch(error => {
+                console.error('Fetch error:', error);
+                console.error('Error name:', error.name);
+                console.error('Error message:', error.message);
+                console.error('Full error:', JSON.stringify(error));
+                errorDiv.textContent = 'An error occurred. Please check console and try again.';
+                errorDiv.classList.remove('hidden');
+            });
+        }
+    </script>
 </body>
 </html>
